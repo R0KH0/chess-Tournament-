@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Bracket Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: white;
+            overflow-x: auto; /* Allow horizontal scroll for large brackets */
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            height: 10px;
+            width: 10px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; 
+            border-radius: 5px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+
+        /* Bracket Logic Styles */
+        .bracket-container {
+            display: flex;
+            flex-direction: row;
+            padding: 40px;
+            min-width: 1600px; /* Increased for 5 columns */
+        }
+
+        .round {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            width: 250px;
+            margin-right: 40px;
+            position: relative;
+        }
+
+        .match {
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 8px; /* Slightly reduced padding to fit more matches */
+            margin: 6px 0; /* Reduced margin to fit 32 teams vertically */
+            position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+            transition: all 0.2s ease;
+        }
+
+        .match:hover {
+            border-color: #64748b;
+        }
+
+        .team {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 8px; /* Compact padding */
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 2px;
+        }
+
+        .team:last-child {
+            margin-bottom: 0;
+        }
+
+        .team:hover {
+            background-color: #334155;
+        }
+
+        .team input {
+            background: transparent;
+            border: none;
+            color: #e2e8f0;
+            width: 100%;
+            font-size: 0.85rem; /* Slightly smaller font for density */
+            outline: none;
+            font-weight: 500;
+        }
+
+        .team input::placeholder {
+            color: #64748b;
+        }
+
+        .team input:focus {
+            border-bottom: 1px solid #3b82f6;
+        }
+
+        .winner-btn {
+            opacity: 0;
+            color: #4ade80;
+            margin-left: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .team:hover .winner-btn {
+            opacity: 1;
+        }
+
+        .team.won {
+            background-color: rgba(34, 197, 94, 0.2);
+            border-left: 3px solid #4ade80;
+        }
+        
+        .team.won input {
+            color: #4ade80;
+            font-weight: 700;
+        }
+
+        /* Connector Lines */
+        .connector {
+            position: absolute;
+            right: -40px;
+            width: 20px;
+            border-right: 2px solid #475569;
+        }
+        
+        /* Logic to draw lines between matches */
+        .round:not(:last-child) .match::after {
+            content: '';
+            position: absolute;
+            right: -20px;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background-color: #475569;
+        }
+
+        .round:not(:first-child) .match::before {
+            content: '';
+            position: absolute;
+            left: -20px;
+            top: 50%;
+            width: 20px;
+            height: 2px;
+            background-color: #475569;
+        }
+
+        /* Vertical connectors for pairing */
+        .match-pair-connector {
+            position: absolute;
+            right: -20px;
+            width: 2px;
+            background-color: #475569;
+        }
+
+        /* Champion Section */
+        .champion-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin-left: 20px;
+        }
+
+        .trophy {
+            font-size: 3rem;
+            color: #fbbf24;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.5));
+        }
+
+        .reset-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+        }
+    </style>
+</head>
+<body class="antialiased selection:bg-blue-500 selection:text-white">
+
+    <!-- Header -->
+    <div class="fixed top-0 left-0 w-full bg-slate-900/90 backdrop-blur-md border-b border-slate-700 z-40 px-6 py-4 flex justify-between items-center">
+        <div>
+            <h1 class="text-xl font-bold text-blue-400"><i class="fas fa-trophy mr-2"></i>ARK-X Chess Tournament</h1>   
+        </div>
+        <div class="text-xs text-slate-500 hidden sm:block">
+            <span id="status-msg">Auto-saving enabled</span>
+        </div>
+    </div>
+
+    <!-- Main Bracket Area -->
+    <div class="pt-24 pb-20 overflow-x-auto min-h-screen flex items-center">
+        <div id="bracket-root" class="bracket-container">
+            <!-- Bracket will be injected here by JS -->
+        </div>
+    </div>
+
+    <!-- Reset Button -->
+    <button onclick="resetTournament()" class="reset-btn bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full shadow-lg transition transform hover:scale-105 flex items-center gap-2">
+        <i class="fas fa-trash-alt"></i> Reset Bracket
+    </button>
+
+    <script>
+        // Configuration: 32 Team Bracket (To accommodate 20)
+        // 16 Matches -> 8 Matches -> 4 Matches -> 2 Matches -> 1 Match -> Winner
+        const TOTAL_ROUNDS = 5;
+        const NUM_TEAMS = 20; // Used for seeding defaults
+        
+        // Initial state structure
+        function createDefaultData() {
+            // Helper to pre-fill names for 20 teams, leaving rest as BYE
+            const getInitialName = (i, slot) => {
+                const teamNum = (i * 2) + slot;
+                if (teamNum <= NUM_TEAMS) return `Team ${teamNum}`;
+                return "BYE";
+            };
+
+            return {
+                rounds: [
+                    // Round 1 (16 matches = 32 slots)
+                    { 
+                        id: 0, 
+                        matches: Array.from({length: 16}, (_, i) => ({ 
+                            id: `r1-m${i}`, 
+                            p1: getInitialName(i, 1), 
+                            p2: getInitialName(i, 2), 
+                            winner: null 
+                        })) 
+                    },
+                    // Round 2 (8 matches)
+                    { id: 1, matches: Array.from({length: 8}, (_, i) => ({ id: `r2-m${i}`, p1: null, p2: null, winner: null })) },
+                    // Round 3 (4 matches)
+                    { id: 2, matches: Array.from({length: 4}, (_, i) => ({ id: `r3-m${i}`, p1: null, p2: null, winner: null })) },
+                    // Round 4 (2 matches)
+                    { id: 3, matches: Array.from({length: 2}, (_, i) => ({ id: `r4-m${i}`, p1: null, p2: null, winner: null })) },
+                    // Round 5 (Final - 1 match)
+                    { id: 4, matches: Array.from({length: 1}, (_, i) => ({ id: `r5-m${i}`, p1: null, p2: null, winner: null })) }
+                ],
+                champion: null
+            };
+        }
+
+        let bracketData = createDefaultData();
+
+        // --- Core Logic ---
+
+        function init() {
+            loadState();
+            renderBracket();
+        }
+
+        function saveState() {
+            localStorage.setItem('tournament_bracket_20team_v1', JSON.stringify(bracketData));
+            const msg = document.getElementById('status-msg');
+            msg.textContent = "Saved to local storage";
+            msg.style.color = "#4ade80";
+            setTimeout(() => {
+                msg.textContent = "Auto-saving enabled";
+                msg.style.color = "#64748b";
+            }, 1000);
+        }
+
+        function loadState() {
+            const saved = localStorage.getItem('tournament_bracket_20team_v1');
+            if (saved) {
+                bracketData = JSON.parse(saved);
+            }
+        }
+
+        function resetTournament() {
+            if(confirm("Are you sure you want to reset the entire tournament? All progress will be lost.")) {
+                bracketData = createDefaultData();
+                saveState();
+                renderBracket();
+            }
+        }
+
+        function updateName(roundIndex, matchIndex, playerSlot, newName) {
+            const match = bracketData.rounds[roundIndex].matches[matchIndex];
+            if (playerSlot === 1) match.p1 = newName;
+            else match.p2 = newName;
+            
+            // Propagate changes if winner is already selected
+            if (match.winner === 1 && playerSlot === 1) advanceWinner(roundIndex, matchIndex, 1, false);
+            if (match.winner === 2 && playerSlot === 2) advanceWinner(roundIndex, matchIndex, 2, false);
+
+            saveState();
+        }
+
+        function advanceWinner(roundIndex, matchIndex, playerSlot, toggle = true) {
+            const currentRound = bracketData.rounds[roundIndex];
+            const match = currentRound.matches[matchIndex];
+            const winnerName = playerSlot === 1 ? match.p1 : match.p2;
+
+            if (!winnerName || winnerName === "BYE") return; // Can't advance empty slot or a BYE text directly (usually user clicks the real team)
+
+            // Logic to toggle: if clicking the already selected winner, deselect them
+            if (toggle && match.winner === playerSlot) {
+                match.winner = null;
+                updateNextRoundSlot(roundIndex, matchIndex, null);
+                saveState();
+                renderBracket();
+                return;
+            }
+
+            // Set winner
+            match.winner = playerSlot;
+
+            // Handle Championship Logic
+            if (roundIndex === bracketData.rounds.length - 1) {
+                bracketData.champion = winnerName;
+            } else {
+                updateNextRoundSlot(roundIndex, matchIndex, winnerName);
+            }
+
+            saveState();
+            renderBracket();
+        }
+
+        function updateNextRoundSlot(currentRoundIndex, currentMatchIndex, name) {
+            if (currentRoundIndex >= bracketData.rounds.length - 1) return;
+
+            const nextRoundIndex = currentRoundIndex + 1;
+            const nextMatchIndex = Math.floor(currentMatchIndex / 2);
+            const nextPlayerSlot = (currentMatchIndex % 2 === 0) ? 1 : 2; 
+
+            const nextMatch = bracketData.rounds[nextRoundIndex].matches[nextMatchIndex];
+            
+            if (nextPlayerSlot === 1) nextMatch.p1 = name;
+            else nextMatch.p2 = name;
+
+            // Reset next winner if entrant changes to ensure fairness
+            if (nextMatch.winner) {
+                nextMatch.winner = null;
+                updateNextRoundSlot(nextRoundIndex, nextMatchIndex, null); 
+            }
+        }
+
+        // --- Rendering ---
+
+        function renderBracket() {
+            const container = document.getElementById('bracket-root');
+            container.innerHTML = '';
+
+            // Render Rounds
+            bracketData.rounds.forEach((round, rIndex) => {
+                const roundDiv = document.createElement('div');
+                roundDiv.className = 'round';
+                
+                // Round Header
+                const header = document.createElement('div');
+                header.className = "text-center text-slate-500 text-sm font-bold mb-4 uppercase tracking-wider absolute -top-8 w-full";
+                
+                if(rIndex === 0) header.innerText = "Round of 32";
+                else if(rIndex === 1) header.innerText = "Round of 16";
+                else if(rIndex === 2) header.innerText = "Quarter Finals";
+                else if(rIndex === 3) header.innerText = "Semi Finals";
+                else if(rIndex === 4) header.innerText = "Finals";
+                
+                roundDiv.appendChild(header);
+
+                round.matches.forEach((match, mIndex) => {
+                    const matchDiv = document.createElement('div');
+                    matchDiv.className = 'match';
+
+                    matchDiv.appendChild(createTeamElement(rIndex, mIndex, 1, match.p1, match.winner === 1));
+                    matchDiv.appendChild(createTeamElement(rIndex, mIndex, 2, match.p2, match.winner === 2));
+
+                    roundDiv.appendChild(matchDiv);
+                });
+
+                container.appendChild(roundDiv);
+            });
+
+            // Render Champion Column
+            const champDiv = document.createElement('div');
+            champDiv.className = 'champion-container';
+            champDiv.innerHTML = `
+                <i class="fas fa-crown trophy"></i>
+                <div class="text-slate-400 text-sm uppercase tracking-widest mb-2">Champion</div>
+                <div class="bg-gradient-to-r from-yellow-600 to-yellow-400 text-slate-900 font-bold px-6 py-3 rounded-lg shadow-lg text-xl min-w-[150px] text-center">
+                    ${bracketData.champion || '?'}
+                </div>
+            `;
+            container.appendChild(champDiv);
+        }
+
+        function createTeamElement(rIndex, mIndex, slot, name, isWinner) {
+            const div = document.createElement('div');
+            div.className = `team ${isWinner ? 'won' : ''}`;
+            
+            // Check for BYE
+            const isBye = name === "BYE";
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = name || '';
+            input.placeholder = rIndex === 0 ? "Enter Team..." : "TBD";
+            if (isBye) {
+                input.disabled = true;
+                input.style.color = "#64748b";
+                input.style.fontStyle = "italic";
+            }
+            
+            input.addEventListener('input', (e) => updateName(rIndex, mIndex, slot, e.target.value));
+            
+            const btn = document.createElement('button');
+            btn.className = 'winner-btn';
+            btn.innerHTML = '<i class="fas fa-check-circle"></i>';
+            btn.title = "Mark as Winner";
+            btn.onclick = () => advanceWinner(rIndex, mIndex, slot);
+
+            div.appendChild(input);
+            // Don't show winner button for BYE slots or empty slots
+            if (name && !isBye) div.appendChild(btn);
+
+            return div;
+        }
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
